@@ -1,0 +1,411 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Rapport d'analyse Médicis</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script src="https://d3js.org/d3.v7.min.js"></script>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;700&display=swap" rel="stylesheet">
+    <style>
+        body {
+            font-family: 'Inter', sans-serif;
+            background-color: #f3f4f6;
+        }
+        .chart-container, .table-container {
+            background-color: white;
+            border-radius: 0.75rem;
+            padding: 1.5rem;
+            box-shadow: 0 4px 6px -1px rgb(0 0 0 / 0.1), 0 2px 4px -2px rgb(0 0 0 / 0.1);
+            transition: all 0.3s ease-in-out;
+        }
+        .chart-container:hover, .table-container:hover {
+            box-shadow: 0 10px 15px -3px rgb(0 0 0 / 0.1), 0 4px 6px -4px rgb(0 0 0 / 0.1);
+        }
+        .tooltip {
+            position: absolute;
+            text-align: left;
+            padding: 0.5rem;
+            font-size: 0.875rem;
+            background: #1f2937;
+            color: white;
+            border: 0;
+            border-radius: 0.5rem;
+            pointer-events: none;
+            opacity: 0;
+            transition: opacity 0.2s;
+            max-width: 300px;
+        }
+        .tooltip ul {
+            list-style-position: inside;
+            padding-left: 0.5rem;
+        }
+        .node text {
+            pointer-events: none;
+            font-size: 10px;
+            fill: #374151;
+        }
+        .link {
+            stroke: #9ca3af;
+            stroke-opacity: 0.6;
+        }
+        /* Styles pour les tableaux */
+        th {
+            background-color: #f9fafb;
+            color: #374151;
+            font-weight: 600;
+        }
+        th, td {
+            padding: 0.75rem 1rem;
+            text-align: left;
+            border-bottom: 1px solid #e5e7eb;
+        }
+        tbody tr:nth-child(even) {
+            background-color: #f9fafb;
+        }
+    </style>
+</head>
+<body class="p-4 md:p-8">
+
+    <!-- Section 1: Visualisation des Données -->
+    <div class="max-w-7xl mx-auto">
+        <header class="text-center mb-10">
+            <h1 class="text-4xl md:text-5xl font-bold text-gray-800">Rapport d'Analyse Médicis</h1>
+            <p class="text-gray-600 mt-2 text-lg">Une vue d'ensemble de l'écosystème digital.</p>
+        </header>
+
+        <div class="mb-16">
+            <h2 class="text-3xl font-bold text-gray-800 text-center mb-10">Section 1 : Écosystème des Entités</h2>
+            <div class="grid grid-cols-1 lg:grid-cols-2 gap-8">
+                <!-- Graphique 1 -->
+                <div class="chart-container">
+                    <h3 class="text-xl font-bold text-gray-700 mb-4 text-center">Nombre d'Éléments par Catégorie</h3>
+                    <div id="chart1-container"><svg id="chart1"></svg></div>
+                </div>
+                <!-- Graphique 2 -->
+                <div class="chart-container">
+                    <h3 class="text-xl font-bold text-gray-700 mb-4 text-center">Taille des Classes d'Équivalence</h3>
+                    <div id="chart2-container"><svg id="chart2"></svg></div>
+                </div>
+                <!-- Graphique 3 -->
+                <div class="chart-container lg:col-span-2">
+                    <h3 class="text-xl font-bold text-gray-700 mb-4 text-center">Graphe des Classes d'Équivalence (en étoile)</h3>
+                    <p class="text-center text-sm text-gray-500 mb-4">Le nœud central est le représentant. Les nœuds connectés sont ses alias.</p>
+                    <div id="chart3-container" class="relative w-full h-[600px] border border-gray-200 rounded-lg"><svg id="chart3" class="w-full h-full"></svg></div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Section 2: Singularités & Chiffres-clés -->
+    <div class="max-w-7xl mx-auto mt-16">
+        <h2 class="text-3xl font-bold text-gray-800 text-center mb-10">Section 2 : Singularités & Chiffres-clés</h2>
+        <div class="grid grid-cols-1 xl:grid-cols-2 gap-12">
+            <!-- Tableau Singularités -->
+            <div class="table-container">
+                <h3 class="text-2xl font-semibold text-gray-700 mb-6 text-center">Singularités</h3>
+                <div class="overflow-x-auto">
+                    <table class="w-full text-sm" id="singularites-table"></table>
+                </div>
+            </div>
+            <!-- Tableau Chiffres -->
+            <div class="table-container">
+                 <h3 class="text-2xl font-semibold text-gray-700 mb-6 text-center">Chiffres-clés</h3>
+                <div class="overflow-x-auto">
+                    <table class="w-full text-sm" id="chiffres-table"></table>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Section 3: Cibles (MODIFIÉ) -->
+    <div class="max-w-7xl mx-auto my-16">
+        <h2 class="text-3xl font-bold text-gray-800 text-center mb-10">Section 3 : Cibles</h2>
+        <div class="table-container">
+            <div class="overflow-x-auto">
+                <table class="w-full text-sm" id="cibles-table"></table>
+            </div>
+        </div>
+    </div>
+
+    <!-- Tooltip pour les graphiques -->
+    <div id="tooltip" class="tooltip"></div>
+
+    <script>
+        // --- Données pour les graphiques ---
+        const rawData = `Médicis	entité économique	Médicis, Mutuelle Médicis, la mutuelle Médicis, MÉDICIS
+Malakoff Humanis	entité économique	Malakoff Humanis
+PER Médicis	produit	PER Médicis, Plan d'Épargne Retraite Médicis, PER individuel Médicis
+PER Médicis Multisupport	produit	PER Médicis Multisupport
+PER Médicis en points	produit	PER Médicis en points, PER Médicis en points retraite
+Médicis retraite PERP	produit	Médicis retraite PERP
+Diagnostic Retraite	service	Diagnostic Retraite
+Club Avantages	service	Club Avantages
+Fonds d'Action Sociale	service	Fonds d'Action Sociale, Fonds d'Action Sociale du PER Médicis en points
+Espace Adhérents	service	Espace Adhérents, Espaces Adhérents et Partenaires`;
+
+        const data = rawData.split('\n').map(line => {
+            const [representative, category, aliasesStr] = line.split('\t');
+            return {
+                representative: representative.trim(),
+                category: category.trim(),
+                aliases: aliasesStr.split(',').map(s => s.trim())
+            };
+        });
+
+        // --- Données pour les tableaux ---
+        const singularitesData = `Thématique,Singularité,Entités associées
+"Structure à but non lucratif","Médicis est une société de personnes à but non lucratif ; la richesse créée est réinvestie pour garantir la pérennité des engagements.","Médicis"
+"Gouvernance par les pairs","La mutuelle est gérée et administrée par des chefs d'entreprise, en activité ou à la retraite, qui sont élus par leurs pairs.","Médicis"
+"Fonctionnement démocratique","Le modèle repose sur le principe « 1 adhérent = 1 voix », assurant que chaque membre peut participer aux décisions collectives.","Médicis"
+"Spécialiste historique","Médicis est spécialisée dans l'épargne retraite pour les indépendants depuis 1978, soit bien avant la loi Madelin ou le Plan Épargne Retraite.","Médicis"
+"Dédicace exclusive","L'offre de la mutuelle est 100% et exclusivement dédiée aux indépendants et entrepreneurs.","Médicis"
+"Affiliation à un leader","Médicis est une mutuelle affiliée au groupe Malakoff Humanis, présenté comme le leader français de la protection sociale.","Médicis, Malakoff Humanis"
+"PER Médicis Multisupport : Fonds à impact unique","Permet d'accéder au 1er fonds à impact social (Sienna Obligations Impact Social ISR), finançant des projets liés à l'égalité, l'inclusion et l'emploi des seniors.","PER Médicis Multisupport, PER Médicis"
+"PER Médicis Multisupport : Gestionnaire exclusif et pionnier","La gamme de placements responsables est exclusivement gérée par Sienna Investment Managers, une société pionnière de l'investissement socialement responsable (ISR).","PER Médicis Multisupport, PER Médicis"
+"PER Médicis Multisupport : Performance du fonds euros","Le fonds euros du contrat affiche une performance de 4% nets de frais pour l'année 2024.","PER Médicis Multisupport, PER Médicis"
+"PER Médicis en points : Simplicité revendiquée","Présenté comme la solution d'épargne retraite la plus simple, car les versements sont automatiquement transformés en points retraite.","PER Médicis en points, PER Médicis"
+"PER Médicis en points : Gestion collective unique","Le pilotage des actifs est collectif, c'est-à-dire identique pour tous les épargnants, ce qui dispense l'adhérent de devoir définir un profil d'investisseur.","PER Médicis en points, PER Médicis"
+"PER Médicis en points : Fonds d'Action Sociale","Ce PER intègre un Fonds d'Action Sociale destiné à soutenir les adhérents qui rencontrent des difficultés ponctuelles.","PER Médicis en points, PER Médicis"
+"Engagement pour les métiers de bouche","Remise d'un prix à un jeune apprenti lors du concours du Meilleur Apprenti de France (MAF) pour les bouchers (depuis 2014), les fromagers et les poissonniers.","Malakoff Humanis"
+"Élu Service Client de l'Année","Médicis a été récompensé 3 années consécutives dans la catégorie Assurance pour la qualité de son service client.","Médicis, Espace Adhérents, Club Avantages"
+"PER Médicis Multisupport primé","Le contrat a reçu de multiples récompenses : Trophée d'Or (Le Revenu 2023), Meilleurs PER (Challenges 2024) et Label d'Excellence (Les Dossiers de l'épargne 2025).","PER Médicis Multisupport, PER Médicis"
+"Soutien à l'entrepreneuriat","Partenaire du 1er concours national dédié uniquement aux commerçants indépendants (""La plus belle vitrine de Noël"").","Médicis"`;
+
+        const chiffresData = `Chiffre,Description,Catégorie,Entités associées
+"4 %","Rendement net de frais du fonds euros du PER Médicis Multisupport pour l'année 2024.","Performance & Offres","PER Médicis, PER Médicis Multisupport"
+"1er","Le PER Médicis Multisupport donne accès au 1er fonds à impact social (Sienna Obligations Impact Social ISR).","Performance & Offres","PER Médicis, PER Médicis Multisupport"
+"100 %","Les solutions de la mutuelle sont 100 % dédiées aux indépendants et entrepreneurs.","Performance & Offres","PER Médicis, PER Médicis Multisupport, PER Médicis en points, Médicis retraite PERP, Diagnostic Retraite, Club Avantages, Espace Adhérents"
+"1978","Année de création de la mutuelle Médicis.","Entreprise & Communauté","Médicis"
+"+ 45 ans","L'expérience de Médicis au service des indépendants.","Entreprise & Communauté","Médicis"
+"+ 200 000","Le nombre d'adhérents faisant confiance à Médicis.","Entreprise & Communauté","Médicis, Espace Adhérents"
+"1,7 milliard d’euros","Le montant des actifs gérés par la mutuelle.","Entreprise & Communauté","Médicis"
+"10 000","Le nombre de nouveaux adhérents chaque année.","Entreprise & Communauté","Médicis, Espace Adhérents"
+"+ 40 000","Le nombre d'entrepreneurs accompagnés par Médicis depuis sa création.","Entreprise & Communauté","Médicis, Espace Adhérents"
+"+ 22 %","L'augmentation du nombre de nouveaux adhérents en 2022.","Entreprise & Communauté","Médicis, Espace Adhérents"
+"+ 25 %","L'augmentation des versements en 2022.","Entreprise & Communauté","Médicis, PER Médicis"
+"1 adhérent = 1 voix","Le principe fondateur de la gouvernance démocratique de la mutuelle.","Gouvernance & Engagements","Médicis"
+"78 %","Le pourcentage de femmes au sein du Conseil d’administration de Médicis.","Gouvernance & Engagements","Médicis"
+"2014","Année depuis laquelle Médicis est partenaire du concours du Meilleur Apprenti de France (MAF).","Gouvernance & Engagements","Médicis"
+"3","Nombre d'années consécutives où Médicis a été ""Élu Service Client de l'Année"" (2018, 2019, 2020)","Récompenses & Satisfaction","Médicis, Espace Adhérents"
+"96 %","Pourcentage d'adhérents qui se déclarent satisfaits de Médicis.","Récompenses & Satisfaction","Médicis, Espace Adhérents"
+"8,1/10","La note moyenne de satisfaction attribuée par les adhérents.","Récompenses & Satisfaction","Médicis, Espace Adhérents"
+"86 %","Pourcentage d'adhérents prêts à recommander Médicis à leurs proches.","Récompenses & Satisfaction","Médicis"
+"2023, 2024, 2025","Années des récompenses obtenues pour le PER Médicis Multisupport.","Récompenses & Satisfaction","PER Médicis Multisupport"`;
+        
+        // NOUVELLES DONNÉES POUR LE TABLEAU DES CIBLES
+        const ciblesData = `Cible,Classe d'équivalence,Catégorie,Sources
+"Artisan","artisan","Artisanat & Métiers de Bouche","Site Web, Instagram, LinkedIn"
+"Boucher","boucher","Artisanat & Métiers de Bouche","Site Web, Instagram, LinkedIn, YouTube"
+"Boulanger-pâtissier","boulanger-pâtissier","Artisanat & Métiers de Bouche","Site Web, Instagram, LinkedIn, YouTube, X (Twitter)"
+"Caviste","caviste","Artisanat & Métiers de Bouche","Site Web, Instagram, LinkedIn"
+"Charcutier","charcutier","Artisanat & Métiers de Bouche","Site Web, LinkedIn"
+"Chocolatier","chocolatier","Artisanat & Métiers de Bouche","Instagram, X (Twitter)"
+"Fromager","fromager, crémier-fromager","Artisanat & Métiers de Bouche","ENRICHISSEMENT"
+"Poissonnier","poissonnier, écailler","Artisanat & Métiers de Bouche","ENRICHISSEMENT"
+"Restaurateur","restaurateur, patron de restaurant","Artisanat & Métiers de Bouche","ENRICHISSEMENT"
+"Traiteur","traiteur","Artisanat & Métiers de Bouche","Site Web, Instagram"
+"Professionnel de la gastronomie","professionnel de la gastronomie, chef à domicile, cuisinier","Artisanat & Métiers de Bouche","ENRICHISSEMENT"
+"Producteur agricole","producteur agricole, éleveur","Artisanat & Métiers de Bouche","ENRICHISSEMENT"
+"Pâtissier","pâtissier","Artisanat & Métiers de Bouche","ENRICHISSEMENT"
+"Brasseur artisanal","brasseur artisanal","Artisanat & Métiers de Bouche","ENRICHISSEMENT"
+"Torréfacteur","torréfacteur","Artisanat & Métiers de Bouche","ENRICHISSEMENT"
+"Commerçant","commerçant, commerçant indépendant","Commerce & Services de Proximité","ENRICHISSEMENT"
+"Agent immobilier","agent immobilier","Commerce & Services de Proximité","ENRICHISSEMENT"
+"Commerçant en arts de la table","commerçant en arts de la table, commerçant en décoration","Commerce & Services de Proximité","ENRICHISSEMENT"
+"Bijoutier","bijoutier","Commerce & Services de Proximité","Instagram, X (Twitter)"
+"Gérant de boutique de mode","gérant de boutique de mode","Commerce & Services de Proximité","ENRICHISSEMENT"
+"Gérant de café","gérant de café, gérant de bar","Commerce & Services de Proximité","ENRICHISSEMENT"
+"Commerçant des marchés","commerçant des marchés","Commerce & Services de Proximité","Site Web"
+"Épicier","épicier, gérant d'alimentation générale","Commerce & Services de Proximité","ENRICHISSEMENT"
+"Fleuriste","fleuriste","Commerce & Services de Proximité","YouTube, Instagram, X (Twitter)"
+"Libraire","libraire","Commerce & Services de Proximité","ENRICHISSEMENT"
+"Marchand de presse","marchand de presse","Commerce & Services de Proximité","Site Web, YouTube, LinkedIn"
+"Hôtelier","hôtelier, professionnel de l'hôtellerie","Commerce & Services de Proximité","ENRICHISSEMENT"
+"Opticien","opticien","Commerce & Services de Proximité","ENRICHISSEMENT"
+"Pharmacien","pharmacien (titulaire d'officine), gérant de parapharmacie, pharmacien","Commerce & Services de Proximité","ENRICHISSEMENT"
+"Primeur","primeur","Commerce & Services de Proximité","Site Web, Instagram, X (Twitter)"
+"Spécialiste en produits bio","spécialiste en produits bio","Commerce & Services de Proximité","ENRICHISSEMENT"
+"Coiffeur","coiffeur, barbier","Commerce & Services de Proximité","ENRICHISSEMENT"
+"Esthéticienne","esthéticienne","Commerce & Services de Proximité","ENRICHISSEMENT"
+"Photographe indépendant","photographe indépendant","Commerce & Services de Proximité","ENRICHISSEMENT"
+"Cordonnier","cordonnier","Commerce & Services de Proximité","ENRICHISSEMENT"
+"Gérant de pressing","gérant de pressing","Commerce & Services de Proximité","ENRICHISSEMENT"
+"Gérant de gîte","gérant de gîte, gérant de chambre d'hôtes","Commerce & Services de Proximité","ENRICHISSEMENT"
+"Plombier","plombier","Artisans du Bâtiment","ENRICHISSEMENT"
+"Électricien","électricien","Artisans du Bâtiment","ENRICHISSEMENT"
+"Peintre en bâtiment","peintre en bâtiment","Artisans du Bâtiment","ENRICHISSEMENT"
+"Menuisier","menuisier, charpentier","Artisans du Bâtiment","ENRICHISSEMENT"
+"Maçon","maçon","Artisans du Bâtiment","ENRICHISSEMENT"
+"Carreleur","carreleur, solier-moquettiste","Artisans du Bâtiment","ENRICHISSEMENT"
+"Paysagiste","paysagiste","Artisans du Bâtiment","ENRICHISSEMENT"
+"Plaquiste","plaquiste, plâtrier","Artisans du Bâtiment","ENRICHISSEMENT"
+"Agent Commercial","agent commercial","Professions Libérales, Conseil & Freelances","Site Web"
+"Agriculteur","agriculteur","Professions Libérales, Conseil & Freelances","Instagram"
+"Professionnel libéral","professionnel libéral","Professions Libérales, Conseil & Freelances","ENRICHISSEMENT"
+"Tatoueur","tatoueur","Professions Libérales, Conseil & Freelances","YouTube"
+"Consultant","consultant","Professions Libérales, Conseil & Freelances","ENRICHISSEMENT"
+"Développeur web","développeur web, freelance IT","Professions Libérales, Conseil & Freelances","ENRICHISSEMENT"
+"Graphiste","graphiste, designer","Professions Libérales, Conseil & Freelances","ENRICHISSEMENT"
+"Architecte","architecte","Professions Libérales, Conseil & Freelances","ENRICHISSEMENT"
+"Avocat","avocat","Professions Libérales, Conseil & Freelances","ENRICHISSEMENT"
+"Expert-comptable","expert-comptable","Professions Libérales, Conseil & Freelances","ENRICHISSEMENT"
+"Professionnel de santé libéral","professionnel de santé libéral","Professions Libérales, Conseil & Freelances","ENRICHISSEMENT"
+"Coach","coach sportif, coach professionnel, coach","Professions Libérales, Conseil & Freelances","ENRICHISSEMENT"
+"Traducteur indépendant","traducteur indépendant","Professions Libérales, Conseil & Freelances","ENRICHISSEMENT"
+"Chef d'entreprise (TPE/PME)","chef d'entreprise (TPE/PME), dirigeant d'entreprise (TPE/PME)","Statuts d'Entreprise","ENRICHISSEMENT"
+"Entrepreneur","entrepreneur","Statuts d'Entreprise","Site Web, YouTube, LinkedIn, Instagram, X (Twitter)"
+"Gérant","gérant","Statuts d'Entreprise","Site Web, YouTube"
+"Micro-entrepreneur","micro-entrepreneur, auto-entrepreneur","Statuts d'Entreprise","ENRICHISSEMENT"
+"Salarié de sa propre entreprise","salarié de sa propre entreprise","Statuts d'Entreprise","Site Web"
+"Associé de société de personnes","associé de société de personnes","Statuts d'Entreprise","Site Web"
+"Travailleur Non Salarié (TNS)","travailleur non salarié (TNS)","Statuts d'Entreprise","Site Web"`;
+
+        // --- Fonction pour générer un tableau à partir de données CSV ---
+        function createTable(containerId, csvData) {
+            const table = d3.select(`#${containerId}`);
+            table.selectAll("*").remove(); // Clear previous content
+            
+            const rows = d3.csvParse(csvData);
+            
+            // Header
+            table.append("thead").append("tr")
+                .selectAll("th")
+                .data(rows.columns)
+                .join("th")
+                .text(d => d);
+
+            // Body
+            const tbody = table.append("tbody");
+            rows.forEach(rowData => {
+                const tr = tbody.append("tr");
+                rows.columns.forEach(column => {
+                    tr.append("td").text(rowData[column]);
+                });
+            });
+        }
+
+        // --- Initialisation des tableaux ---
+        createTable("singularites-table", singularitesData);
+        createTable("chiffres-table", chiffresData);
+        createTable("cibles-table", ciblesData);
+        
+        // --- Tooltip ---
+        const tooltip = d3.select("#tooltip");
+
+        // --- Couleurs pour les catégories ---
+        const colorScale = d3.scaleOrdinal()
+            .domain(['entité économique', 'produit', 'service'])
+            .range(['#3b82f6', '#10b981', '#f97316']);
+
+        // --- Fonctions pour les graphiques (inchangées) ---
+        function renderChart1() {
+            const categoryCounts = d3.rollup(data, v => v.length, d => d.category);
+            const chartData = Array.from(categoryCounts, ([key, value]) => ({ category: key, count: value }));
+            const svg = d3.select("#chart1");
+            const container = d3.select("#chart1-container");
+            const width = parseInt(container.style("width"));
+            const height = 300;
+            svg.attr("width", width).attr("height", height).attr("viewBox", `0 0 ${width} ${height}`).attr("preserveAspectRatio", "xMidYMid meet");
+            svg.selectAll("*").remove();
+            const margin = { top: 20, right: 20, bottom: 70, left: 40 };
+            const innerWidth = width - margin.left - margin.right;
+            const innerHeight = height - margin.top - margin.bottom;
+            const g = svg.append("g").attr("transform", `translate(${margin.left},${margin.top})`);
+            const xScale = d3.scaleBand().domain(chartData.map(d => d.category)).range([0, innerWidth]).padding(0.2);
+            const yScale = d3.scaleLinear().domain([0, d3.max(chartData, d => d.count)]).nice().range([innerHeight, 0]);
+            g.append("g").attr("transform", `translate(0,${innerHeight})`).call(d3.axisBottom(xScale)).selectAll("text").attr("transform", "rotate(-45)").style("text-anchor", "end");
+            g.append("g").call(d3.axisLeft(yScale));
+            g.selectAll("rect").data(chartData).join("rect").attr("x", d => xScale(d.category)).attr("y", d => yScale(d.count)).attr("width", xScale.bandwidth()).attr("height", d => innerHeight - yScale(d.count)).attr("fill", d => colorScale(d.category))
+                .on("mouseover", (event, d) => { tooltip.style("opacity", 1).html(`Catégorie: <strong>${d.category}</strong><br>Nombre: <strong>${d.count}</strong>`); })
+                .on("mousemove", (event) => { tooltip.style("left", (event.pageX + 15) + "px").style("top", (event.pageY - 28) + "px"); })
+                .on("mouseout", () => { tooltip.style("opacity", 0); });
+        }
+
+        function renderChart2() {
+            const chartData = data.map(d => ({ name: d.representative, size: d.aliases.length, category: d.category })).sort((a,b) => d3.descending(a.size, b.size));
+            const svg = d3.select("#chart2");
+            const container = d3.select("#chart2-container");
+            const width = parseInt(container.style("width"));
+            const height = 300;
+            svg.attr("width", width).attr("height", height).attr("viewBox", `0 0 ${width} ${height}`).attr("preserveAspectRatio", "xMidYMid meet");
+            svg.selectAll("*").remove();
+            const margin = { top: 20, right: 20, bottom: 120, left: 40 };
+            const innerWidth = width - margin.left - margin.right;
+            const innerHeight = height - margin.top - margin.bottom;
+            const g = svg.append("g").attr("transform", `translate(${margin.left},${margin.top})`);
+            const xScale = d3.scaleBand().domain(chartData.map(d => d.name)).range([0, innerWidth]).padding(0.1);
+            const yScale = d3.scaleLinear().domain([0, d3.max(chartData, d => d.size)]).nice().range([innerHeight, 0]);
+            g.append("g").attr("transform", `translate(0,${innerHeight})`).call(d3.axisBottom(xScale)).selectAll("text").attr("transform", "translate(-10,0)rotate(-45)").style("text-anchor", "end");
+            g.append("g").call(d3.axisLeft(yScale).ticks(d3.max(chartData, d => d.size)));
+            g.selectAll("rect").data(chartData).join("rect").attr("x", d => xScale(d.name)).attr("y", d => yScale(d.size)).attr("width", xScale.bandwidth()).attr("height", d => innerHeight - yScale(d.size)).attr("fill", d => colorScale(d.category))
+                 .on("mouseover", (event, d) => { tooltip.style("opacity", 1).html(`Entité: <strong>${d.name}</strong><br>Nb. d'alias: <strong>${d.size}</strong>`); })
+                .on("mousemove", (event) => { tooltip.style("left", (event.pageX + 15) + "px").style("top", (event.pageY - 28) + "px"); })
+                .on("mouseout", () => { tooltip.style("opacity", 0); });
+        }
+
+        function renderChart3() {
+            const nodeMap = new Map();
+            const links = [];
+            data.forEach(d => {
+                if (!nodeMap.has(d.representative)) { nodeMap.set(d.representative, { id: d.representative, type: 'representative', category: d.category, aliases: d.aliases }); }
+                d.aliases.forEach(alias => {
+                    if (alias === d.representative) return;
+                    if (!nodeMap.has(alias)) { nodeMap.set(alias, { id: alias, type: 'alias', category: d.category, representative: d.representative }); }
+                    links.push({ source: d.representative, target: alias });
+                });
+            });
+            const nodes = Array.from(nodeMap.values());
+            const svg = d3.select("#chart3");
+            const container = d3.select("#chart3-container");
+            const width = parseInt(container.style("width"));
+            const height = parseInt(container.style("height"));
+            svg.selectAll("*").remove();
+            const simulation = d3.forceSimulation(nodes)
+                .force("link", d3.forceLink(links).id(d => d.id).distance(60))
+                .force("charge", d3.forceManyBody().strength(-300))
+                .force("center", d3.forceCenter(width / 2, height / 2))
+                .force("collide", d3.forceCollide().radius(d => (d.type === 'representative' ? 25 : 15)));
+            const link = svg.append("g").selectAll("line").data(links).join("line").attr("class", "link");
+            const node = svg.append("g").selectAll("g").data(nodes).join("g").attr("class", "node").call(drag(simulation));
+            node.append("circle").attr("r", d => d.type === 'representative' ? 20 : 10).attr("fill", d => colorScale(d.category)).attr("stroke", "#fff").attr("stroke-width", 2);
+            node.append("text").text(d => d.id).attr("x", d => d.type === 'representative' ? 24 : 14).attr("y", 5);
+            node.on("mouseover", (event, d) => {
+                    d3.select(event.currentTarget).select("circle").transition().duration(200).attr("r", d.type === 'representative' ? 25: 15);
+                    tooltip.style("opacity", 1);
+                    let content = `<strong>${d.id}</strong>`;
+                    if (d.type === 'representative') {
+                        content += `<br>Type: <strong>Représentant</strong><br>Catégorie: ${d.category}`;
+                        if (d.aliases && d.aliases.length > 1) { content += `<br><hr style="margin: 4px 0;"><em>Alias:</em><ul>${d.aliases.map(a => `<li>${a}</li>`).join('')}</ul>`; }
+                    } else { content += `<br>Type: <strong>Alias</strong><br>Représentant: ${d.representative}`; }
+                    tooltip.html(content);
+                })
+                .on("mousemove", (event) => { tooltip.style("left", (event.pageX + 15) + "px").style("top", (event.pageY - 28) + "px"); })
+                .on("mouseout", (event, d) => { d3.select(event.currentTarget).select("circle").transition().duration(200).attr("r", d.type === 'representative' ? 20 : 10); tooltip.style("opacity", 0); });
+            simulation.on("tick", () => {
+                link.attr("x1", d => d.source.x).attr("y1", d => d.source.y).attr("x2", d => d.target.x).attr("y2", d => d.target.y);
+                node.attr("transform", d => `translate(${d.x},${d.y})`);
+            });
+            function drag(simulation) {
+                function dragstarted(event, d) { if (!event.active) simulation.alphaTarget(0.3).restart(); d.fx = d.x; d.fy = d.y; }
+                function dragged(event, d) { d.fx = event.x; d.fy = event.y; }
+                function dragended(event, d) { if (!event.active) simulation.alphaTarget(0); d.fx = null; d.fy = null; }
+                return d3.drag().on("start", dragstarted).on("drag", dragged).on("end", dragended);
+            }
+        }
+
+        // --- Rendu initial et redimensionnement ---
+        function renderAll() {
+            renderChart1();
+            renderChart2();
+            renderChart3();
+        }
+
+        window.addEventListener('load', renderAll);
+        window.addEventListener('resize', renderAll);
+
+    </script>
+</body>
+</html>
