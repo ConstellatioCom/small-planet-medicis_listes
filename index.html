@@ -102,7 +102,6 @@
     <!-- Section 2: Singularités et chiffres-clés -->
     <div class="max-w-7xl mx-auto mt-16">
         <h2 class="text-3xl font-bold text-gray-800 text-center mb-10">Section 2 : Singularités et chiffres-clés</h2>
-        <!-- MODIFICATION: Remplacement de la grille par une colonne flex pour empiler les tableaux -->
         <div class="flex flex-col gap-12">
             <!-- Tableau Singularités -->
             <div class="table-container">
@@ -364,12 +363,13 @@ Espace Adhérents	service	Espace Adhérents, Espaces Adhérents et Partenaires`;
             const height = parseInt(container.style("height"));
             svg.selectAll("*").remove();
             
+            // MODIFICATION: Ajustement des forces pour un meilleur équilibre
             const simulation = d3.forceSimulation(nodes)
-                .force("link", d3.forceLink(links).id(d => d.id).distance(50).strength(0.5))
-                .force("charge", d3.forceManyBody().strength(-250))
-                .force("center", d3.forceCenter(width / 2, height / 2).strength(1))
-                .force("x", d3.forceX(width / 2).strength(0.08))
-                .force("y", d3.forceY(height / 2).strength(0.08))
+                .force("link", d3.forceLink(links).id(d => d.id).distance(70).strength(0.5))
+                .force("charge", d3.forceManyBody().strength(-280))
+                .force("center", d3.forceCenter(width / 2, height / 2).strength(0.8))
+                .force("x", d3.forceX(width / 2).strength(0.06))
+                .force("y", d3.forceY(height / 2).strength(0.06))
                 .force("collide", d3.forceCollide().radius(d => (d.type === 'representative' ? 25 : 15)));
 
             const link = svg.append("g").selectAll("line").data(links).join("line").attr("class", "link");
@@ -392,11 +392,26 @@ Espace Adhérents	service	Espace Adhérents, Espaces Adhérents et Partenaires`;
                 link.attr("x1", d => d.source.x).attr("y1", d => d.source.y).attr("x2", d => d.target.x).attr("y2", d => d.target.y);
                 node.attr("transform", d => `translate(${d.x},${d.y})`);
             });
+            
+            // MODIFICATION: Fonction de drag pour fixer les noeuds
             function drag(simulation) {
-                function dragstarted(event, d) { if (!event.active) simulation.alphaTarget(0.3).restart(); d.fx = d.x; d.fy = d.y; }
-                function dragged(event, d) { d.fx = event.x; d.fy = event.y; }
-                function dragended(event, d) { if (!event.active) simulation.alphaTarget(0); d.fx = null; d.fy = null; }
-                return d3.drag().on("start", dragstarted).on("drag", dragged).on("end", dragended);
+                function dragstarted(event, d) {
+                    if (!event.active) simulation.alphaTarget(0.3).restart();
+                    d.fx = d.x;
+                    d.fy = d.y;
+                }
+                function dragged(event, d) {
+                    d.fx = event.x;
+                    d.fy = event.y;
+                }
+                function dragended(event, d) {
+                    if (!event.active) simulation.alphaTarget(0);
+                    // On ne remet pas fx et fy à null pour que le noeud reste fixe
+                }
+                return d3.drag()
+                    .on("start", dragstarted)
+                    .on("drag", dragged)
+                    .on("end", dragended);
             }
         }
 
